@@ -1,1 +1,6 @@
 Videos*
+
+[submodule "PyTorch-YOLO-v2"]
+    path = PyTorch-YOLO-v2
+    url = https://github.com/Srini2404/PyTorch-YOLO-v2.git
+    ignore = dirty
