@@ -1,2 +1,3 @@
 Videos*
-yolo-voc.weights
+*.weights
+*.cfg
