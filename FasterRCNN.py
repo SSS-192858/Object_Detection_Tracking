@@ -1,14 +1,16 @@
 import cv2
 import numpy as np
 import torch
+import time
 import torchvision.transforms as T
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 
 # Load Faster R-CNN
 device = torch.device('cpu')
-model = fasterrcnn_resnet50_fpn(pretrained=True)
-model.eval()
-model.to(device)
+rcnn= fasterrcnn_resnet50_fpn(pretrained=True)
+rcnn.eval()
+streamer = cv2.VideoCapture("./Videos/V1.avi")
+rcnn.to(device)
 classes = ["person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
             "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
             "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
@@ -22,51 +24,74 @@ classes = ["person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
             "hair drier", "toothbrush"]
 
 # Threshold for confidence level
-conf_threshold = 0.5
+class FasterRCNN:
 
-cap = cv2.VideoCapture("./Videos/V1.avi")
-frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-fps = cap.get(cv2.CAP_PROP_FPS)
+    def __init__(self,rcnn,stream,threshold=0.5):
+        self.model = rcnn
+        self.stream = stream
+        self.device =  'cpu'
+        self.model.to(self.device)
+        self.threshold = threshold
+        self.transform = T.Compose([
+            T.ToTensor(),
+        ])
 
-transform = T.Compose([
-    T.ToTensor(),
-])
-# frame_count = 0
 
-fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-out = cv2.VideoWriter('output.avi', fourcc, fps, (frame_width, frame_height))
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
-    # frame_count += 1
-    # if frame_count % 2 != 0:
-        # continue
+    
+    def draw_boxes(self,frame):
+        frame1 = frame.copy()
+        if isinstance(frame1,np.ndarray) == False:
+            print("Invalid frame")
+            exit(1)
 
-    frame_tensor = transform(frame).to(device)
-    with torch.no_grad():
-        outputs = model([frame_tensor])
+        frame_tsor = self.transform(frame1).to(self.device)
+        with torch.no_grad():
+            output = self.model([frame_tsor])
 
-    boxes = outputs[0]['boxes'].cpu().numpy()
-    scores = outputs[0]['scores'].cpu().numpy()
-    labels = outputs[0]['labels'].cpu().numpy()
+        boxes = output[0]['boxes'].cpu().numpy()
+        scores = output[0]['scores'].cpu().numpy()
+        labels = output[0]['labels'].cpu().numpy()
 
-    for box, score, label in zip(boxes, scores, labels):
-        if score < conf_threshold:
-            continue
-        x1, y1, x2, y2 = map(int, box)
-        color = (255, 0, 0)  # Red color for the bounding box
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(frame, classes[label], (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-    frame = cv2.resize(frame, (800, 600))   
-    # Display frame
-    out.write(frame)
-    # cv2.imshow('Object Detection', frame)
 
-    # Press 'q' to exit
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # Loop over the detected objects and annotate them on the frame
+        for detected_box, detected_score, detected_label in zip(boxes, scores, labels):
+            # Skip objects with low confidence
+            if detected_score < self.threshold:
+                continue
 
-cap.release()
-cv2.destroyAllWindows()
+            # Extract coordinates of the bounding box
+            x1, y1, x2, y2 = map(int, detected_box)
+            
+            # Define color and font for the label
+            box_color = (0, 255, 0)  # Green color for the bounding box
+            label_font = cv2.FONT_HERSHEY_SIMPLEX
+
+            # Draw a rectangle around the detected object
+            cv2.rectangle(frame1, (x1, y1), (x2, y2), box_color, thickness=2)
+            
+            # Add label to the detected object
+            label_text = classes[detected_label]
+            cv2.putText(frame1, label_text, (x1, y1), label_font, fontScale=0.9, color=box_color, thickness=2)
+        # Return the frame with annotations
+        return frame1
+    
+    def __call__(self, out_file):
+
+        x_shape = int(self.stream.get(cv2.CAP_PROP_FRAME_WIDTH))
+        y_shape = int(self.stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fourcc = cv2.VideoWriter_fourcc(*"MJPG")  # Using MJPEG codec
+        output_writer = cv2.VideoWriter(out_file, fourcc, 20, (x_shape, y_shape))
+        rectangle, frame = self.stream.read()  # Read the first frame.
+        while rectangle:
+            start_time = time.time()  # We would like to measure the FPS.
+            frame = self.draw_boxes(frame)  # Plot the boxes directly
+            end_time = time.time()
+            fps = 1 / np.round(end_time - start_time, 3)  # Measure the FPS.
+            print(f"Frames Per Second : {fps}")
+            output_writer.write(frame)  # Write the frame onto the output.
+            rectangle, frame = self.stream.read()  # Read next f
+
+faster_rcnn = FasterRCNN(rcnn, streamer,0.5)
+faster_rcnn("output_RCNN.avi")  
+
+
