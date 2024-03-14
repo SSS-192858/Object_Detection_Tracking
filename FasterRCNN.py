@@ -1,97 +1,90 @@
 import cv2
 import numpy as np
 import torch
-import time
 import torchvision.transforms as T
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
+from deep_sort.deep_sort import nn_matching
+from deep_sort.deep_sort.detection import Detection
+from deep_sort.deep_sort.tracker import Tracker
 
-# Load Faster R-CNN
-device = torch.device('cpu')
-rcnn= fasterrcnn_resnet50_fpn(pretrained=True)
-rcnn.eval()
-streamer = cv2.VideoCapture("./Videos/V1.avi")
-rcnn.to(device)
-classes = ["person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
-            "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
-            "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
-            "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
-            "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
-            "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
-            "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza",
-            "donut", "cake", "chair", "couch", "potted plant", "bed", "dining table", "toilet",
-            "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
-            "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-            "hair drier", "toothbrush"]
-
-# Threshold for confidence level
-class FasterRCNN:
-
-    def __init__(self,rcnn,stream,threshold=0.5):
-        self.model = rcnn
-        self.stream = stream
-        self.device =  'cpu'
+class FasterRCNNTracker:
+    def __init__(self, video_path, output_path):
+        self.video_path = video_path
+        self.output_path = output_path
+        self.model = fasterrcnn_resnet50_fpn(pretrained=True)
+        self.model.eval()
+        self.device = torch.device('cpu')
         self.model.to(self.device)
-        self.threshold = threshold
         self.transform = T.Compose([
             T.ToTensor(),
         ])
+        self.classes = ["person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
+                        "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench",
+                        "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
+                        "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+                        "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+                        "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
+                        "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza",
+                        "donut", "cake", "chair", "couch", "potted plant", "bed", "dining table", "toilet",
+                        "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
+                        "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
+                        "hair drier", "toothbrush"]
+        self.tracker = self.initialize_tracker()
 
+    def initialize_tracker(self):
+        # DeepSORT setup
+        max_cosine_distance = 0.3
+        nn_budget = None
+        metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
+        tracker = Tracker(metric)
+        return tracker
 
-    
-    def draw_boxes(self,frame):
-        frame1 = frame.copy()
-        if isinstance(frame1,np.ndarray) == False:
-            print("Invalid frame")
-            exit(1)
-
-        frame_tsor = self.transform(frame1).to(self.device)
+    def detect_objects(self, frame):
+        frame_tensor = self.transform(frame).to(self.device)
         with torch.no_grad():
-            output = self.model([frame_tsor])
+            outputs = self.model([frame_tensor])
 
-        boxes = output[0]['boxes'].cpu().numpy()
-        scores = output[0]['scores'].cpu().numpy()
-        labels = output[0]['labels'].cpu().numpy()
+        boxes = outputs[0]['boxes'].cpu().numpy()
+        scores = outputs[0]['scores'].cpu().numpy()
+        class_ids = outputs[0]['labels'].cpu().numpy()
 
+        return boxes, scores, class_ids
 
-        # Loop over the detected objects and annotate them on the frame
-        for detected_box, detected_score, detected_label in zip(boxes, scores, labels):
-            # Skip objects with low confidence
-            if detected_score < self.threshold:
-                continue
+    def track_objects(self):
+        cap = cv2.VideoCapture(self.video_path)
+        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = 20 
+        fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+        out = cv2.VideoWriter(self.output_path, fourcc, fps, (frame_width, frame_height))
 
-            # Extract coordinates of the bounding box
-            x1, y1, x2, y2 = map(int, detected_box)
-            
-            # Define color and font for the label
-            box_color = (0, 255, 0)  # Green color for the bounding box
-            label_font = cv2.FONT_HERSHEY_SIMPLEX
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-            # Draw a rectangle around the detected object
-            cv2.rectangle(frame1, (x1, y1), (x2, y2), box_color, thickness=2)
-            
-            # Add label to the detected object
-            label_text = classes[detected_label]
-            cv2.putText(frame1, label_text, (x1, y1), label_font, fontScale=0.9, color=box_color, thickness=2)
-        # Return the frame with annotations
-        return frame1
-    
-    def __call__(self, out_file):
+            # Object detection with Faster R-CNN
+            boxes, scores, class_ids = self.detect_objects(frame)
 
-        x_shape = int(self.stream.get(cv2.CAP_PROP_FRAME_WIDTH))
-        y_shape = int(self.stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fourcc = cv2.VideoWriter_fourcc(*"MJPG")  # Using MJPEG codec
-        output_writer = cv2.VideoWriter(out_file, fourcc, 20, (x_shape, y_shape))
-        rectangle, frame = self.stream.read()  # Read the first frame.
-        while rectangle:
-            start_time = time.time()  # We would like to measure the FPS.
-            frame = self.draw_boxes(frame)  # Plot the boxes directly
-            end_time = time.time()
-            fps = 1 / np.round(end_time - start_time, 3)  # Measure the FPS.
-            print(f"Frames Per Second : {fps}")
-            output_writer.write(frame)  # Write the frame onto the output.
-            rectangle, frame = self.stream.read()  # Read next f
+            # Perform object tracking with DeepSORT
+            detections = [Detection(bbox, score, class_id) for bbox, score, class_id in zip(boxes, scores, class_ids)]
+            self.tracker.predict()
+            self.tracker.update(detections)
 
-faster_rcnn = FasterRCNN(rcnn, streamer,0.5)
-faster_rcnn("output_RCNN.avi")  
+            # Draw bounding boxes and track IDs
+            for track in self.tracker.tracks:
+                if not track.is_confirmed() or track.time_since_update > 1:
+                    continue
+                bbox = track.to_tlbr()
+                bbox = bbox.astype(int)  # Convert bounding box coordinates to integers
+                class_id = track.track_id % len(self.classes)  # Use track ID as class ID for visualization
+                color = (255, 0, 0)
+                cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
+                cv2.putText(frame, str(track.track_id), (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5, color, 2)
 
+            out.write(frame)
 
+# Usage:
+tracker = FasterRCNNTracker("./Videos/V1.avi", "output_rcnn.avi")
+tracker.track_objects()
