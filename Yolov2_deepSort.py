@@ -9,7 +9,7 @@ class YOLOv2Tracker:
     def __init__(self, video_path, output_path):
         self.video_path = video_path
         self.output_path = output_path
-        self.net = cv2.dnn.readNet("yolov2.weights", "yolo-voc.cfg")
+        self.net = cv2.dnn.readNet(r"C:\Users\Srinivasan M\OneDrive\Desktop\Semester_6\VR\Object_Detection_Tracking\yolov2.weights",r"C:\Users\Srinivasan M\OneDrive\Desktop\Semester_6\VR\Object_Detection_Tracking\yolo-voc.cfg")
         self.classes = []
         with open("coco.names", "r") as f:
             self.classes = [line.strip() for line in f.readlines()]
@@ -90,5 +90,8 @@ class YOLOv2Tracker:
             out.write(frame)
 
 # Usage:
-tracker = YOLOv2Tracker("./Videos/V1.avi", "output_yolo.avi")
+start_time = time.time()
+tracker = YOLOv2Tracker("./Videos/V1.avi", "output_yolo_deepsort.avi")
 tracker.track_objects()
+end_time = time.time()
+print("The total time taken is : ",end_time-start_time," seconds.")

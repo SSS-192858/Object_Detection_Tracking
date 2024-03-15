@@ -10,6 +10,7 @@ import torchvision.models as models
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
+
 class FasterRCNNTracker:
     def __init__(self, video_path, output_path):
         self.video_path = video_path
@@ -90,5 +91,9 @@ class FasterRCNNTracker:
             out.write(frame)
 
 # Usage:
+start_time = time.time()
 tracker = FasterRCNNTracker("./Videos/V1.avi", "output_faster_rcnn.avi")
 tracker.track_objects()
+end_time = time.time()
+print("The total time taken is : ",end_time-start_time," seconds.")
+
