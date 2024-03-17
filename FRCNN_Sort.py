@@ -1,31 +1,32 @@
 import cv2
 import numpy as np
-from deep_sort.deep_sort import nn_matching
-import time
-from deep_sort.deep_sort.detection import Detection
-from deep_sort.deep_sort.tracker import Tracker
+from sort.sort import Sort
 import torch
+import time
 import torchvision.transforms as transforms
 import torchvision.models as models
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights
 
-
-class FasterRCNNTracker:
+class FasterRCNNSortTracker:
     def __init__(self, video_path, output_path):
         self.video_path = video_path
         self.output_path = output_path
         
         # Load the pre-trained Faster R-CNN model from torchvision
-        self.model = models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+        self.model = models.detection.fasterrcnn_resnet50_fpn(FasterRCNN_ResNet50_FPN_Weights.COCO_V1)
         self.model.eval()
         
-        # Move the model to GPU if available
+        # Move the model to CPU
         self.device = torch.device("cpu")
         self.model.to(self.device)
         
-        # Define the transformations to be applied to the input image
+        # Define the transformations to be applied to the input frame
         self.transform = transforms.Compose([transforms.ToTensor()])
+        
+        # Initialize the SORT tracker
+        self.tracker = Sort()
         
     def detect_objects(self, frame):
         # Apply transformations to the input frame
@@ -40,13 +41,12 @@ class FasterRCNNTracker:
         boxes = predictions[0]['boxes'].cpu().numpy()
         scores = predictions[0]['scores'].cpu().numpy()
         labels = predictions[0]['labels'].cpu().numpy()
-        
         # Filter out detections with scores less than 0.5
         threshold = 0.5
-        boxes = boxes[scores > threshold]
-        labels = labels[scores > threshold]
+        valid_classes = [torch.tensor(2), torch.tensor(3), torch.tensor(4), torch.tensor(6), torch.tensor(8)]
+        valid_indices = (scores > threshold) & np.isin(labels, valid_classes)
         
-        return boxes, scores, labels
+        return boxes[valid_indices]
 
     def track_objects(self):
         cap = cv2.VideoCapture(self.video_path)
@@ -56,43 +56,35 @@ class FasterRCNNTracker:
         fourcc = cv2.VideoWriter_fourcc(*"MJPG")
         out = cv2.VideoWriter(self.output_path, fourcc, fps, (frame_width, frame_height))
 
-        # DeepSORT setup
-        max_cosine_distance = 0.3
-        nn_budget = None
-        metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-        tracker = Tracker(metric)
-
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
 
             # Object detection with Faster R-CNN
-            boxes, confidences, class_ids = self.detect_objects(frame)
+            boxes = self.detect_objects(frame)
 
-            # Perform object tracking with DeepSORT
-            detections = [Detection(bbox, score, np.array([])) for bbox, score in zip(boxes, confidences)]
-            tracker.predict()
-            tracker.update(detections)
+            # Combine boxes into detections for SORT
+            detections = np.array([[x1, y1, x2, y2, 1] for (x1, y1, x2, y2) in boxes])  # Assign a confidence of 1 for all detections
+
+            # Update SORT tracker
+            tracked_objects = self.tracker.update(detections)
 
             # Draw bounding boxes and track IDs
-            for track in tracker.tracks:
-                if not track.is_confirmed() or track.time_since_update > 1:
-                    continue
-                bbox = track.to_tlbr()
-                bbox = bbox.astype(int)  # Convert bounding box coordinates to integers
-                class_id = track.track_id % 90  # Assume there are 90 classes
+            for obj in tracked_objects:
+                bbox = obj[:4].astype(int)
+                track_id = int(obj[4])
                 color = (255, 0, 0)
-                cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
-                cv2.putText(frame, str(track.track_id), (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX,
+                cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 1)
+                cv2.putText(frame, str(track_id), (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX,
                             0.5, color, 2)
-            
+            cv2.putText(frame,f'Number of Vehicles: {len(boxes)}',(100,100),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,255),2)
             print(f"Frames Per Second : {fps}")
             out.write(frame)
 
 # Usage:
 start_time = time.time()
-tracker = FasterRCNNTracker("./Videos/V1.avi", "output_faster_rcnn.avi")
+tracker = FasterRCNNSortTracker("./Videos/V1.avi", "output_faster_rcnn_sort.avi")
 tracker.track_objects()
 end_time = time.time()
 print("The total time taken is : ",end_time-start_time," seconds.")

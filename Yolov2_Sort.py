@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from sort.sort import Sort
 import time
+import torch
 class YOLOv2Tracker:
     def __init__(self, video_path, output_path):
         self.video_path = video_path
@@ -28,7 +29,7 @@ class YOLOv2Tracker:
                 scores = detection[5:]
                 class_id = np.argmax(scores)
                 confidence = scores[class_id]
-                if confidence > 0.5:
+                if confidence > 0.5 and class_id in [torch.tensor(2), torch.tensor(3), torch.tensor(4), torch.tensor(6), torch.tensor(8)]:
                     center_x = int(detection[0] * frame.shape[1])
                     center_y = int(detection[1] * frame.shape[0])
                     w = int(detection[2] * frame.shape[1])
@@ -72,7 +73,7 @@ class YOLOv2Tracker:
                 cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
                 cv2.putText(frame, str(track_id), (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX,
                             0.5, color, 2)
-
+            cv2.putText(frame,f'Number of Vehicles: {len(boxes)}',(100,100),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,255),2)
             print(f"Frames Per Second : {fps}")
             out.write(frame)
 

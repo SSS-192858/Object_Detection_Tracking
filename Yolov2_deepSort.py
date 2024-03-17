@@ -3,6 +3,7 @@ import numpy as np
 from deep_sort.deep_sort import nn_matching
 import time
 from deep_sort.deep_sort.detection import Detection
+import torch
 from deep_sort.deep_sort.tracker import Tracker
 
 class YOLOv2Tracker:
@@ -30,7 +31,7 @@ class YOLOv2Tracker:
                 scores = detection[5:]
                 class_id = np.argmax(scores)
                 confidence = scores[class_id]
-                if confidence > 0.5:
+                if confidence > 0.5 and class_id in [torch.tensor(2), torch.tensor(3), torch.tensor(4), torch.tensor(6), torch.tensor(8)]:
                     center_x = int(detection[0] * frame.shape[1])
                     center_y = int(detection[1] * frame.shape[0])
                     w = int(detection[2] * frame.shape[1])
@@ -86,6 +87,7 @@ class YOLOv2Tracker:
             # # frame = self.draw_boxes(frame)  # Plot the boxes directly
             # end_time = time.time()
             # fps = 1 / np.round(end_time - start_time, 3)  # Measure the FPS.
+            cv2.putText(frame,f'Number of Vehicles: {len(boxes)}',(100,100),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,255),2)
             print(f"Frames Per Second : {fps}")
             out.write(frame)
 
