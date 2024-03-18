@@ -6,6 +6,8 @@ from deep_sort.deep_sort.detection import Detection
 import torch
 from deep_sort.deep_sort.tracker import Tracker
 
+s = set()
+
 class YOLOv2Tracker:
     def __init__(self, video_path, output_path):
         self.video_path = video_path
@@ -31,7 +33,7 @@ class YOLOv2Tracker:
                 scores = detection[5:]
                 class_id = np.argmax(scores)
                 confidence = scores[class_id]
-                if confidence > 0.5 and class_id in [torch.tensor(2), torch.tensor(3), torch.tensor(4), torch.tensor(6), torch.tensor(8)]:
+                if confidence > 0.5 and class_id in [torch.tensor(3)]:
                     center_x = int(detection[0] * frame.shape[1])
                     center_y = int(detection[1] * frame.shape[0])
                     w = int(detection[2] * frame.shape[1])
@@ -56,8 +58,8 @@ class YOLOv2Tracker:
         max_cosine_distance = 0.3
         nn_budget = None
         metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-        tracker = Tracker(metric)
-
+        tracker = Tracker(metric, max_iou_distance=0.3,max_age=250, n_init=2)
+        
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -70,11 +72,13 @@ class YOLOv2Tracker:
             detections = [Detection(bbox, score, np.array([])) for bbox, score in zip(boxes, confidences)]
             tracker.predict()
             tracker.update(detections)
-
+            # num_vehicles = 0
             # Draw bounding boxes and track IDs
             for track in tracker.tracks:
                 if not track.is_confirmed() or track.time_since_update > 1:
                     continue
+                # num_vehicles+=1
+                s.add(track.track_id)
                 bbox = track.to_tlbr()
                 bbox = bbox.astype(int)  # Convert bounding box coordinates to integers
                 class_id = track.track_id % len(self.classes)  # Use track ID as class ID for visualization
@@ -87,7 +91,7 @@ class YOLOv2Tracker:
             # # frame = self.draw_boxes(frame)  # Plot the boxes directly
             # end_time = time.time()
             # fps = 1 / np.round(end_time - start_time, 3)  # Measure the FPS.
-            cv2.putText(frame,f'Number of Vehicles: {len(boxes)}',(100,100),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,255),2)
+            cv2.putText(frame,f'Number of Vehicles: {len(s)}',(100,100),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,255),2)
             print(f"Frames Per Second : {fps}")
             out.write(frame)
 

@@ -9,6 +9,8 @@ from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights
 
+s = set()
+
 class FasterRCNNSortTracker:
     def __init__(self, video_path, output_path):
         self.video_path = video_path
@@ -26,7 +28,7 @@ class FasterRCNNSortTracker:
         self.transform = transforms.Compose([transforms.ToTensor()])
         
         # Initialize the SORT tracker
-        self.tracker = Sort()
+        self.tracker = Sort(max_age=2800, min_hits=3)
         
     def detect_objects(self, frame):
         # Apply transformations to the input frame
@@ -42,8 +44,8 @@ class FasterRCNNSortTracker:
         scores = predictions[0]['scores'].cpu().numpy()
         labels = predictions[0]['labels'].cpu().numpy()
         # Filter out detections with scores less than 0.5
-        threshold = 0.5
-        valid_classes = [torch.tensor(2), torch.tensor(3), torch.tensor(4), torch.tensor(6), torch.tensor(8)]
+        threshold = 0.95
+        valid_classes = [torch.tensor(3)]
         valid_indices = (scores > threshold) & np.isin(labels, valid_classes)
         
         return boxes[valid_indices]
@@ -55,7 +57,7 @@ class FasterRCNNSortTracker:
         fps = 20
         fourcc = cv2.VideoWriter_fourcc(*"MJPG")
         out = cv2.VideoWriter(self.output_path, fourcc, fps, (frame_width, frame_height))
-
+        
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -69,16 +71,18 @@ class FasterRCNNSortTracker:
 
             # Update SORT tracker
             tracked_objects = self.tracker.update(detections)
-
+            # num_vehicles = 0
             # Draw bounding boxes and track IDs
             for obj in tracked_objects:
                 bbox = obj[:4].astype(int)
+                # num_vehicles += 1
+                s.add(obj[4])
                 track_id = int(obj[4])
                 color = (255, 0, 0)
                 cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 1)
                 cv2.putText(frame, str(track_id), (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX,
                             0.5, color, 2)
-            cv2.putText(frame,f'Number of Vehicles: {len(boxes)}',(100,100),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,255),2)
+            cv2.putText(frame,f'Number of Vehicles: {len(s)}',(100,100),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,255),2)
             print(f"Frames Per Second : {fps}")
             out.write(frame)
 

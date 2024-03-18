@@ -3,6 +3,7 @@ import numpy as np
 from sort.sort import Sort
 import time
 import torch
+s = set()
 class YOLOv2Tracker:
     def __init__(self, video_path, output_path):
         self.video_path = video_path
@@ -13,7 +14,7 @@ class YOLOv2Tracker:
             self.classes = [line.strip() for line in f.readlines()]
         layer_names = self.net.getLayerNames()
         self.output_layers = [layer_names[i - 1] for i in self.net.getUnconnectedOutLayers()]
-        self.tracker = Sort()
+        self.tracker = Sort(max_age=2800, min_hits=3)
 
     def detect_objects(self, frame):
         blob = cv2.dnn.blobFromImage(frame, 1 / 255.0, (416, 416), swapRB=True, crop=False)
@@ -29,7 +30,7 @@ class YOLOv2Tracker:
                 scores = detection[5:]
                 class_id = np.argmax(scores)
                 confidence = scores[class_id]
-                if confidence > 0.5 and class_id in [torch.tensor(2), torch.tensor(3), torch.tensor(4), torch.tensor(6), torch.tensor(8)]:
+                if confidence > 0.5 and class_id in [torch.tensor(3)]:
                     center_x = int(detection[0] * frame.shape[1])
                     center_y = int(detection[1] * frame.shape[0])
                     w = int(detection[2] * frame.shape[1])
@@ -49,7 +50,6 @@ class YOLOv2Tracker:
         fps = 20
         fourcc = cv2.VideoWriter_fourcc(*"MJPG")
         out = cv2.VideoWriter(self.output_path, fourcc, fps, (frame_width, frame_height))
-
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -63,24 +63,27 @@ class YOLOv2Tracker:
 
             # Update SORT tracker
             tracked_objects = self.tracker.update(detections)
+            # num_vehicles = 0
 
             # Draw bounding boxes and track IDs
             for obj in tracked_objects:
                 bbox = obj[:4].astype(int)
+                # num_vehicles += 1
+                s.add(int(obj[4]))
                 track_id = int(obj[4])
                 class_id = track_id % len(self.classes)
                 color = (255, 0, 0)
                 cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
                 cv2.putText(frame, str(track_id), (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX,
                             0.5, color, 2)
-            cv2.putText(frame,f'Number of Vehicles: {len(boxes)}',(100,100),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,255),2)
+            cv2.putText(frame,f'Number of Vehicles: {len(s)}',(100,100),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,255),2)
             print(f"Frames Per Second : {fps}")
             out.write(frame)
 
 
 # Usage:
 start_time = time.time()
-tracker = YOLOv2Tracker("./Videos/V1.avi", "output_yolo_sort.avi")
+tracker = YOLOv2Tracker("./Videos/Vikas1.avi", "output_yolo_sort1.avi")
 tracker.track_objects()
 end_time = time.time()
 print("The time taken to process the video is : ", end_time - start_time, " seconds")
