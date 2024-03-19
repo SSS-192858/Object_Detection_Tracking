@@ -33,7 +33,7 @@ class YOLOv2Tracker:
                 scores = detection[5:]
                 class_id = np.argmax(scores)
                 confidence = scores[class_id]
-                if confidence > 0.5 and class_id in [torch.tensor(3)]:
+                if confidence > 0.2 and class_id in [torch.tensor(3)]:
                     center_x = int(detection[0] * frame.shape[1])
                     center_y = int(detection[1] * frame.shape[0])
                     w = int(detection[2] * frame.shape[1])
@@ -97,7 +97,7 @@ class YOLOv2Tracker:
 
 # Usage:
 start_time = time.time()
-tracker = YOLOv2Tracker("./Videos/V1.avi", "output_yolo_deepsort.avi")
+tracker = YOLOv2Tracker("./Videos/S1.mp4", "YoloV2_DeepSort.avi")
 tracker.track_objects()
 end_time = time.time()
 print("The total time taken is : ",end_time-start_time," seconds.")

@@ -83,7 +83,7 @@ class YOLOv2Tracker:
 
 # Usage:
 start_time = time.time()
-tracker = YOLOv2Tracker("./Videos/Vikas1.avi", "output_yolo_sort1.avi")
+tracker = YOLOv2Tracker("./Videos/V1.avi", "YoloV2_Sort.avi")
 tracker.track_objects()
 end_time = time.time()
 print("The time taken to process the video is : ", end_time - start_time, " seconds")

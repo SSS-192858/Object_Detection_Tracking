@@ -111,7 +111,7 @@ class FasterRCNNTracker:
 
 # Usage:
 start_time = time.time()
-tracker = FasterRCNNTracker("./Videos/Vikas1.avi", "output_faster_rcnn1.avi")
+tracker = FasterRCNNTracker("./Videos/V1.avi", "Faster_rcnn_deepSort.avi")
 tracker.track_objects()
 end_time = time.time()
 print("The total time taken is : ", end_time - start_time, " seconds.")

@@ -88,7 +88,7 @@ class FasterRCNNSortTracker:
 
 # Usage:
 start_time = time.time()
-tracker = FasterRCNNSortTracker("./Videos/V1.avi", "output_faster_rcnn_sort.avi")
+tracker = FasterRCNNSortTracker("./Videos/V1.avi", "Faster_rcnn_Sort.avi")
 tracker.track_objects()
 end_time = time.time()
 print("The total time taken is : ",end_time-start_time," seconds.")

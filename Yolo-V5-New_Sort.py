@@ -3,7 +3,10 @@ import torchvision
 import cv2
 import numpy as np
 from sort import sort
+import time
 
+
+start_time = time.time()
 # Device configuration
 device = torch.device('cpu')
 
@@ -22,7 +25,7 @@ confidence_threshold = 0.6
 cap = cv2.VideoCapture('./Videos/v1.avi')
 width = int(cap.get(3))
 height = int(cap.get(4))
-out = cv2.VideoWriter('output3.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 25, (width, height))
+out = cv2.VideoWriter('YoloV5_Sort.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 25, (width, height))
 
 # Set to store unique IDs
 s = set()
@@ -71,3 +74,5 @@ while cap.isOpened():
 # Release video writer and capture object
 out.release()
 cap.release()
+end_time = time.time()
+print("The total time taken is : ",end_time-start_time," seconds.")

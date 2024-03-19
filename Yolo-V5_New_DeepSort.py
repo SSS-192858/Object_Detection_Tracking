@@ -1,26 +1,29 @@
 import torch
 import torchvision
 import cv2
+import time
 from PIL import Image
 from torchvision import transforms as T
 import numpy as np
 from deep_sort_realtime.deepsort_tracker import DeepSort
 
+
+start_time = time.time()
 # Setting up device
 device = torch.device('cpu')
 
 # Constants
 car_class_id = 2
-confidence_val = 0.6
+confidence_val = 0.5
 object_type = ['car']
 
 # Open video file
-cap = cv2.VideoCapture('./Videos/v1.avi')
+cap = cv2.VideoCapture('./Videos/V1.avi')
 width = int(cap.get(3))
 height = int(cap.get(4))
 
 # Video writer
-out = cv2.VideoWriter('YoloV5_1.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 25, (width, height))
+out = cv2.VideoWriter('YoloV5_DeepSort.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 25, (width, height))
 
 # Initialize set for tracking unique IDs
 s = set()
@@ -72,7 +75,7 @@ while cap.isOpened():
                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
     # Vehicle count
-    count = object_tracker.tracker._next_id - 1
+    # count = object_tracker.tracker._next_id - 1
     cv2.putText(frame, f'Vehicle Count: {len(s)}', (20, 200), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 2)
 
     # Write frame
@@ -81,3 +84,5 @@ while cap.isOpened():
 # Release video writer and capture object
 out.release()
 cap.release()
+end_time = time.time()
+print(f"Time taken: {end_time - start_time} seconds")
